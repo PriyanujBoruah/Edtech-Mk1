@@ -2,17 +2,19 @@ import streamlit as st
 from sqlalchemy import text
 
 # -----------------------------------------------------------------------------
-# Database Setup
+# Database Setup (NEON / POSTGRES VERSION)
 # -----------------------------------------------------------------------------
-# This creates a connection. locally it uses sqlite. 
-# For deployment, you would set 'connection_string' in .streamlit/secrets.toml
-conn = st.connection("default", type="sql", url="sqlite:///quiz_app.db")
+# We removed the 'url=' argument. 
+# This forces Streamlit to look for the [connections.default] inside your Secrets.
+conn = st.connection("default", type="sql")
 
+# Initialize DB (Postgres Syntax)
 def init_db():
     with conn.session as s:
+        # Note: We use 'SERIAL' for auto-incrementing IDs in Postgres
         s.execute(text("""
             CREATE TABLE IF NOT EXISTS questions (
-                id INTEGER PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 question_text TEXT,
                 option_a TEXT,
                 option_b TEXT,
@@ -24,7 +26,12 @@ def init_db():
         s.commit()
 
 # Initialize DB on first run
-init_db()
+# This might fail if the connection is wrong, which is good (alerts you immediately)
+try:
+    init_db()
+except Exception as e:
+    st.error(f"Error connecting to database: {e}")
+    st.stop()
 
 # -----------------------------------------------------------------------------
 # Session State Management
@@ -60,20 +67,22 @@ def teacher_page():
         if submitted:
             if q_text and opt_a and opt_b and opt_c and opt_d:
                 with conn.session as s:
+                    # SQLAlchemy text() handles parameters safely for Postgres
                     s.execute(
                         text("INSERT INTO questions (question_text, option_a, option_b, option_c, option_d, correct_option) VALUES (:q, :oa, :ob, :oc, :od, :co)"),
                         params={"q": q_text, "oa": opt_a, "ob": opt_b, "oc": opt_c, "od": opt_d, "co": correct}
                     )
                     s.commit()
-                st.success("Question added successfully!")
+                st.success("Question added successfully to Cloud DB!")
+                st.rerun() # Refresh to show new data immediately
             else:
                 st.error("Please fill in all fields.")
 
     st.divider()
-    st.subheader("Existing Questions")
+    st.subheader("Existing Questions (from Neon)")
     
-    # View existing data
-    df = conn.query("SELECT * FROM questions", ttl=0)
+    # ttl=0 ensures we don't cache old data
+    df = conn.query("SELECT * FROM questions ORDER BY id DESC", ttl=0)
     st.dataframe(df)
 
 # -----------------------------------------------------------------------------
@@ -82,7 +91,7 @@ def teacher_page():
 def student_page():
     st.header("🎓 Student Dashboard")
     
-    # Fetch all questions
+    # ttl=0 ensures we fetch fresh questions
     df = conn.query("SELECT * FROM questions", ttl=0)
     
     if df.empty:
@@ -99,7 +108,7 @@ def student_page():
                 "C": row['option_c'],
                 "D": row['option_d']
             }
-            # Create radio buttons for options
+            # Create radio buttons
             answers[row['id']] = st.radio(
                 f"Select answer for Q{index+1}",
                 options.keys(),
@@ -125,9 +134,9 @@ def student_page():
                 st.write("🌟 Perfect Score!")
 
 # -----------------------------------------------------------------------------
-# Main App Logic (Auth & Navigation)
+# Main App Logic
 # -----------------------------------------------------------------------------
-st.title("📚 Streamlit EdTech Platform")
+st.title("📚 Streamlit EdTech Platform (Cloud)")
 
 if not st.session_state.user_role:
     st.write("Please log in to continue.")
@@ -143,13 +152,11 @@ if not st.session_state.user_role:
             st.rerun()
 
 else:
-    # Sidebar for logout
     with st.sidebar:
         st.write(f"Logged in as: **{st.session_state.user_role}**")
         if st.button("Logout"):
             logout()
 
-    # Route to correct page
     if st.session_state.user_role == "Teacher":
         teacher_page()
     elif st.session_state.user_role == "Student":
