@@ -72,7 +72,8 @@ def parse_questions_with_gemini(raw_text):
         1. Ignore website noise (menus, ads).
         2. Convert subjective questions into MCQs with 4 options.
         3. If no answer is provided, SOLVE IT yourself.
-        4. Output strictly a JSON array of objects. Keys: "question_text", "option_a", "option_b", "option_c", "option_d", "correct_option" (A/B/C/D).
+        4. Output strictly a JSON array of objects. 
+        5. REQUIRED KEYS: "question_text", "option_a", "option_b", "option_c", "option_d", "correct_option" (A, B, C, or D).
 
         Input Text:
         {raw_text}
@@ -128,9 +129,25 @@ def teacher_page():
                             with conn.session as s:
                                 res = s.execute(text("INSERT INTO question_papers (title) VALUES (:t) RETURNING id"), params={"t": ai_title})
                                 new_id = res.scalar()
+                                
+                                # --- FIXED LOOP HERE ---
                                 for q in data:
+                                    # Use .get() to prevent KeyError if AI misses a field
+                                    q_text = q.get('question_text', 'Question text missing')
+                                    oa = q.get('option_a', '-')
+                                    ob = q.get('option_b', '-')
+                                    oc = q.get('option_c', '-')
+                                    od = q.get('option_d', '-')
+                                    # Fallback to "A" if correct_option is missing
+                                    co = q.get('correct_option', 'A').strip().upper() 
+                                    
+                                    # Ensure CO is just one letter
+                                    if len(co) > 1: co = co[0]
+
                                     s.execute(text("INSERT INTO questions (paper_id,question_text,option_a,option_b,option_c,option_d,correct_option) VALUES (:pid,:q,:oa,:ob,:oc,:od,:co)"),
-                                        params={"pid": new_id, "q": q['question_text'], "oa": q['option_a'], "ob": q['option_b'], "oc": q['option_c'], "od": q['option_d'], "co": q['correct_option']})
+                                        params={"pid": new_id, "q": q_text, "oa": oa, "ob": ob, "oc": oc, "od": od, "co": co})
+                                # -----------------------
+                                
                                 s.commit()
                             st.success(f"Created '{ai_title}'!")
 
@@ -348,7 +365,6 @@ STUDENT_PASS = "StupidKid"
 if not st.session_state.user_role:
     st.write("Please log in to continue.")
     
-    # Use Tabs for Login
     login_tab1, login_tab2 = st.tabs(["👨‍🏫 Teacher Login", "🎓 Student Login"])
     
     with login_tab1:
