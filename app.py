@@ -355,7 +355,7 @@ def student_page():
 # -----------------------------------------------------------------------------
 # Main App Entry (PASSWORD PROTECTED)
 # -----------------------------------------------------------------------------
-st.title("📚 Cloud Quiz AI")
+st.title("📚 Chungus Training Centre")
 
 # --- PASSWORDS ---
 TEACHER_PASS = "CuteBoy"
