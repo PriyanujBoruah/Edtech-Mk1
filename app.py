@@ -359,7 +359,7 @@ st.title("📚 Chungus Training Centre")
 
 # --- PASSWORDS ---
 TEACHER_PASS = "CuteBoy"
-STUDENT_PASS = "StupidKid"
+STUDENT_PASS = "MasochistKid"
 # -----------------
 
 if not st.session_state.user_role:
@@ -395,3 +395,4 @@ else:
         teacher_page()
     elif st.session_state.user_role == "Student":
         student_page()
+
